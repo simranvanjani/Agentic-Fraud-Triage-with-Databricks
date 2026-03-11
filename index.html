@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Fraud Queue</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: #333; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #f5f5f5; }
+    .risk-HIGH, .risk-CRITICAL { color: #c00; }
+    .risk-MEDIUM { color: #f80; }
+    button { padding: 0.4rem 0.8rem; margin-right: 0.5rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
+    button.allow { background: #cfc; }
+    button.block { background: #fcc; }
+    button.escalate { background: #ffc; }
+    #queue { margin-top: 1rem; }
+    .note { color: #666; font-size: 0.9rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Live Fraud Queue</h1>
+  <p>Review yellow-flagged transactions. Choose Allow, Block, or Escalate.</p>
+  <div id="queue"></div>
+  <p class="note">Data from <code>real_time_fraud_triage</code> (Lakebase). Refresh to load queue.</p>
+  <script>
+    async function load() {
+      const r = await fetch('/api/queue');
+      const rows = await r.json();
+      const el = document.getElementById('queue');
+      if (!rows.length) { el.innerHTML = '<p>No pending items.</p>'; return; }
+      let html = '<table><thead><tr><th>Transaction</th><th>User</th><th>Risk</th><th>Action</th><th>Reason</th><th>Review</th></tr></thead><tbody>';
+      for (const row of rows) {
+        html += `<tr>
+          <td>${row.transaction_id}</td>
+          <td>${row.user_id}</td>
+          <td class="risk-${row.risk_level}">${row.risk_score} (${row.risk_level})</td>
+          <td>${row.automated_action}</td>
+          <td>${row.action_reason || '-'}</td>
+          <td>
+            <button class="allow" onclick="review('${row.transaction_id}','ALLOW')">Allow</button>
+            <button class="block" onclick="review('${row.transaction_id}','BLOCK')">Block</button>
+            <button class="escalate" onclick="review('${row.transaction_id}','ESCALATE')">Escalate</button>
+          </td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    }
+    async function review(txnId, action) {
+      await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transaction_id: txnId, action }) });
+      load();
+    }
+    load();
+  </script>
+</body>
+</html>
